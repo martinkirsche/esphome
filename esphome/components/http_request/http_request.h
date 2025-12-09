@@ -242,9 +242,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       return;
     }
 
-    size_t content_length = container->content_length;
-    size_t max_length = std::min(content_length, this->max_response_buffer_size_);
-
+    size_t max_length = this->max_response_buffer_size_;
 #ifdef USE_HTTP_REQUEST_RESPONSE
     if (this->capture_response_.value(x...)) {
       std::string response_body;
@@ -264,6 +262,12 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
         response_body.reserve(read_index);
         response_body.assign((char *) buf, read_index);
         allocator.deallocate(buf, max_length);
+      }
+
+      if (container->content_length == 0) {
+        // For chunked responses the content-length header is missing, so we update the content_length with the total
+        // of the decoded chunks that were received.
+        container->content_length = response_body.length();
       }
       std::apply(
           [this, &container, &response_body](Ts... captured_args_inner) {
